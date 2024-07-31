@@ -40,42 +40,29 @@ public class MainActivity extends Activity {
         resultCpp = findViewById(R.id.resultCpp);
 
         btnGet = findViewById(R.id.btnGetSign);
+        findViewById(R.id.btnGetSign2).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                File cacheDir = getCacheDir();
+                File apk = new File(cacheDir, "original.apk");
+                if (!apk.exists()) {
+                    return;
+                }
+
+                PackageManager packageManager = getPackageManager();
+                PackageInfo packageInfo = packageManager.getPackageArchiveInfo(apk.getAbsolutePath(), PackageManager.GET_SIGNATURES);
+                test(packageInfo);
+            }
+        });
         btnGet.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 try {
                     PackageManager packageManager = getPackageManager();
                     PackageInfo packageInfo = packageManager.getPackageInfo(appPkg.getText().toString(), PackageManager.GET_SIGNATURES);
-
-                    Signature[] signatures = packageInfo.signatures;
-
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    DataOutputStream dos = new DataOutputStream(baos);
-                    dos.writeByte(signatures.length);
-
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("std::vector<std::vector<uint8_t>> apk_signatures {");
-                    for (Signature value : signatures) {
-                        sb.append("{");
-                        dos.writeInt(value.toByteArray().length);
-                        dos.write(value.toByteArray());
-                        for (int j = 0; j < value.toByteArray().length; j++) {
-                            sb.append(String.format("0x%02X", value.toByteArray()[j]));
-                            if (j != value.toByteArray().length - 1) {
-                                sb.append(",");
-                            }
-                        }
-                        sb.append("}");
-                    }
-                    sb.append("};");
-
-                    dos.close();
-                    baos.close();
-
-                    resultBase64.setText("Base64: " + Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT));
-                    resultCpp.setText("C++: " + sb.toString());
-                } catch (Exception e) {
-                    e.printStackTrace();
+                    test(packageInfo);
+                } catch (PackageManager.NameNotFoundException e) {
+                    throw new RuntimeException(e);
                 }
             }
         });
@@ -89,7 +76,8 @@ public class MainActivity extends Activity {
                     StringBuilder sb = new StringBuilder();
                     sb.append(resultBase64.getText().toString() + "\n");
                     sb.append(resultCpp.getText().toString() + "\n");
-                    FileOutputStream fos = new FileOutputStream(new File("/sdcard", path));
+                    File dir = getApplication().getCacheDir();
+                    FileOutputStream fos = new FileOutputStream(new File(dir, path));
                     fos.write(sb.toString().getBytes());
                     fos.close();
                     Toast.makeText(MainActivity.this, "Saved to " + path, Toast.LENGTH_SHORT).show();
@@ -98,5 +86,39 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    private void test(PackageInfo packageInfo) {
+        try {
+            Signature[] signatures = packageInfo.signatures;
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(baos);
+            dos.writeByte(signatures.length);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("std::vector<std::vector<uint8_t>> apk_signatures {");
+            for (Signature value : signatures) {
+                sb.append("{");
+                dos.writeInt(value.toByteArray().length);
+                dos.write(value.toByteArray());
+                for (int j = 0; j < value.toByteArray().length; j++) {
+                    sb.append(String.format("0x%02X", value.toByteArray()[j]));
+                    if (j != value.toByteArray().length - 1) {
+                        sb.append(",");
+                    }
+                }
+                sb.append("}");
+            }
+            sb.append("};");
+
+            dos.close();
+            baos.close();
+
+            resultBase64.setText("Base64: " + Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT));
+            resultCpp.setText("C++: " + sb.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
